@@ -8,7 +8,7 @@ const maxRedirects = 2;
 
 if (args.length !== 4) {
   console.error(
-    "Please supply website as first arg and depth as 2nd argument when calling crawler"
+    "Please supply website as the first argument and depth as the second argument when calling the crawler."
   );
   process.exit(1);
 }
@@ -16,13 +16,24 @@ if (args.length !== 4) {
 const startUrl = args[2];
 const depth = parseInt(args[3]);
 
-if (isNaN(depth) || depth < 0 || depth > 3) {
-  console.error("Depth must bepositive integer & can not be greater than 3.");
+if (isNaN(depth) || depth < 0 || depth > 2) {
+  console.error(
+    "Depth must be a positive integer and cannot be greater than 2."
+  );
   process.exit(1);
 }
 
-const crawl = async(url, currentDepth, currentRedirects) => {
-  if (currentDepth > depth || currentRedirects > maxRedirects) return;
+const visitedUrls = new Set();
+const crawl = async (url, currentDepth, currentRedirects) => {
+  if (
+    currentDepth > depth ||
+    currentRedirects > maxRedirects ||
+    visitedUrls.has(url)
+  ) {
+    return;
+  }
+
+  visitedUrls.add(url);
 
   console.log(
     `Crawling: ${url}, Depth: ${currentDepth}, Redirects: ${currentRedirects}`
@@ -46,15 +57,19 @@ const crawl = async(url, currentDepth, currentRedirects) => {
 
     console.log(`Found ${images.length} images at ${url}`);
 
-    for (const link of links) {
-      if (link.startsWith("http")) {
-        await crawl(link, currentDepth + 1, currentRedirects + 1);
-      }
+    const maxBatchSize = 10;
+    for (let i = 0; i < links.length; i += maxBatchSize) {
+      const linkBatch = links.slice(i, i + maxBatchSize);
+      const linkPromises = linkBatch
+        .filter((link) => link.startsWith("http"))
+        .map((link) => crawl(link, currentDepth + 1, currentRedirects + 1));
+
+      await Promise.all(linkPromises);
     }
   } catch (error) {
     console.error(`Error crawling ${url}: ${error.message}`);
   }
-}
+};
 
 crawl(startUrl, 0, 0)
   .then(() => {
